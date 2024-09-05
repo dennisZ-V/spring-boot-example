@@ -8,12 +8,16 @@ import com.example.springbootdemo.demos.OrderTypeEnum;
 import com.example.springbootdemo.demos.entity.*;
 import com.example.springbootdemo.demos.mapper.OrderMapper;
 import com.example.springbootdemo.demos.service.OrderService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.time.*;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -25,9 +29,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, OrderDO> implemen
 
     private final OrderMapper orderMapper;
 
+    private final RedisTemplate<String, Object> redisTemplate;
+
     @Autowired
-    public OrderServiceImpl(OrderMapper orderMapper) {
+    public OrderServiceImpl(OrderMapper orderMapper, RedisTemplate<String, Object> redisTemplate) {
         this.orderMapper = orderMapper;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
@@ -76,10 +83,19 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, OrderDO> implemen
     @Override
     public List<OrderMetricsVO> getOrderMetricsByDept(int year, int month, String dimension) {
         if (year <= Year.now().getValue() && month > 0 && month <= 12) {
+            String key = "orderStatistics:[" + year + "," + month + "," + dimension + "]";
+            List<Object> range = redisTemplate.opsForList().range(key, 0, -1);
+            if (!CollectionUtils.isEmpty(range)) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                return range.stream()
+                        .map(obj -> objectMapper.convertValue(obj, OrderMetricsVO.class))
+                        .collect(Collectors.toList());
+            }
             LocalDateTime firstDay = getFirstDayOfMonth(year, month);
             LocalDateTime lastDay = getLastDayOfMonth(year, month);
             List<OrderStatistics> overdueCountByDept;
             List<OrderStatistics> totalCountByDept;
+            List<OrderMetricsVO> orderMetricsVoList;
             if ("dept".equals(dimension)) {
                 overdueCountByDept = orderMapper.getOverdueCountByDept(firstDay, lastDay);
                 totalCountByDept = orderMapper.getTotalCountByDept(firstDay, lastDay);
@@ -87,7 +103,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, OrderDO> implemen
                 Map<String, Long> totalCountMap = totalCountByDept.stream()
                         .collect(Collectors.toMap(OrderStatistics::getDeptName, OrderStatistics::getCount));
 
-                return overdueCountByDept.stream()
+                orderMetricsVoList = overdueCountByDept.stream()
                         .map(overdue -> {
                             Long totalOrderCount = totalCountMap.getOrDefault(overdue.getDeptName(), 0L);
                             double overdueRate = totalOrderCount == 0 ? 0.0 : (double) overdue.getCount() / totalOrderCount * 100;
@@ -100,13 +116,18 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, OrderDO> implemen
                 Map<Integer, Long> totalCountMap = totalCountByDept.stream()
                         .collect(Collectors.toMap(OrderStatistics::getOrderType, OrderStatistics::getCount));
 
-                return overdueCountByDept.stream()
+                orderMetricsVoList = overdueCountByDept.stream()
                         .map(overdue -> {
                             Long totalOrderCount = totalCountMap.getOrDefault(overdue.getOrderType(), 0L);
                             double overdueRate = totalOrderCount == 0 ? 0.0 : (double) overdue.getCount() / totalOrderCount * 100;
                             return new OrderMetricsVO(year, month, OrderTypeEnum.getTypeNameByCode(overdue.getOrderType()), null, totalOrderCount, (int) overdueRate);
                         }).collect(Collectors.toList());
             }
+            if (!CollectionUtils.isEmpty(orderMetricsVoList)) {
+                orderMetricsVoList.forEach(orderMetricsVO -> redisTemplate.opsForList().rightPush(key, orderMetricsVO));
+                redisTemplate.expire(key, 5000, TimeUnit.MILLISECONDS);
+            }
+            return orderMetricsVoList;
         } else {
             throw new IllegalArgumentException("Invalid year or month");
         }

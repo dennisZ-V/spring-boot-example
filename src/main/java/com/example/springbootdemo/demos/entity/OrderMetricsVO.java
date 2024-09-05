@@ -3,6 +3,7 @@ package com.example.springbootdemo.demos.entity;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * @author zhangdi
@@ -10,6 +11,7 @@ import lombok.Data;
  */
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
 public class OrderMetricsVO {
 

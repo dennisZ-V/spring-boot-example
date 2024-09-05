@@ -7,6 +7,9 @@ spring:
     url: jdbc:mysql://192.168.149.17:3306/demo?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: root
     password: ws-123456
+    initialization-mode: always
+    schema: classpath:init/init.sql
+    data: classpath:init/init-data.sql
 
   redis:
     host: 192.168.149.17

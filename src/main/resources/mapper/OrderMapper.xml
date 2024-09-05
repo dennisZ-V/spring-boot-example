@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.springbootdemo.demos.mapper.OrderMapper">
+
+    <resultMap id="orderStatistics" type="com.example.springbootdemo.demos.entity.OrderStatistics">
+        <result column="dept_name" property="deptName"/>
+        <result column="order_type" property="orderType"/>
+        <result column="count" property="count"/>
+    </resultMap>
+
+    <select id="getTotalCountByDept" resultType="com.example.springbootdemo.demos.entity.OrderMetricsVO"
+            resultMap="orderStatistics">
+        SELECT dept_name, count(*) count
+        FROM t_order tod
+            LEFT JOIN t_department tdt
+        ON tod.handle_dept_id = tdt.dept_id
+        WHERE fenpai_time between #{firstDay}
+          AND #{lastDay}
+        GROUP BY handle_dept_id
+    </select>
+
+    <select id="getOverdueCountByDept" resultType="com.example.springbootdemo.demos.entity.OrderMetricsVO"
+            resultMap="orderStatistics">
+        SELECT dept_name, count(*) count
+        FROM t_order tod
+                 LEFT JOIN t_department tdt
+                           ON tod.handle_dept_id = tdt.dept_id
+        WHERE fenpai_time between #{firstDay} AND #{lastDay}
+          AND is_overdue = 1
+        GROUP BY handle_dept_id
+    </select>
+
+    <select id="getTotalCountByType" resultType="com.example.springbootdemo.demos.entity.OrderStatistics">
+        SELECT order_type, count(*) count
+        FROM t_order tod
+            LEFT JOIN t_department tdt
+        ON tod.handle_dept_id = tdt.dept_id
+        WHERE fenpai_time between #{firstDay}
+          AND #{lastDay}
+        GROUP BY order_type
+    </select>
+
+    <select id="getOverdueCountByType" resultType="com.example.springbootdemo.demos.entity.OrderStatistics">
+        SELECT order_type, count(*) count
+        FROM t_order tod
+            LEFT JOIN t_department tdt
+        ON tod.handle_dept_id = tdt.dept_id
+        WHERE fenpai_time between #{firstDay} AND #{lastDay}
+          AND is_overdue = 1
+        GROUP BY order_type
+    </select>
+</mapper>
